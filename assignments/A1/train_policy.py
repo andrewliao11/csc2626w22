@@ -11,6 +11,7 @@ import os
 from dataset_loader import DrivingDataset
 from driving_policy import DiscreteDrivingPolicy
 from utils import DEVICE, str2bool
+import ipdb
 
 def train_discrete(model, iterator, opt, args):
     model.train()
@@ -26,9 +27,13 @@ def train_discrete(model, iterator, opt, args):
     
     for i_batch, batch in enumerate(iterator):
 
-        #
-        # YOUR CODE GOES HERE
-        #
+        model.zero_grad()
+        logits = model(batch['image'])
+        ipdb.set_trace()
+
+        loss = F.cross_entropy(logits, batch['cmd'])
+        loss.backward()
+        opt.step()
         
         loss = loss.detach().cpu().numpy()
         loss_hist.append(loss)
@@ -122,13 +127,11 @@ def main(args):
     for epoch in range(args.n_epochs):
         print ('EPOCH ', epoch)
 
-        #
-        # YOUR CODE GOES HERE
-        #
-        
-        # Train the driving policy
-        # Evaluate the driving policy on the validation set
-        # If the accuracy on the validation set is a new high then save the network weights 
+        train_discrete(driving_policy, training_iterator, opt, args)
+        avg_acc = test_discrete(driving_policy, validation_iterator, opt, args)
+        if avg_acc > best_val_accuracy:
+            best_val_accuracy = avg_acc
+            # save model here
         
         
     return driving_policy

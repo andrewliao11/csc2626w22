@@ -11,6 +11,7 @@ import os
 from driving_policy import DiscreteDrivingPolicy
 from utils import DEVICE, str2bool
 
+
 def run(steering_network, args):
     
     env = FullStateCarRacingEnv()

@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from torchvision import datasets, transforms
+import ipdb
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -27,16 +28,22 @@ class DiscreteDrivingPolicy(nn.Module):
 
         
         self.features = nn.Sequential(
-            #
-            # YOUR CODE GOES HERE
-            #
+            nn.Conv2d(3, 24, kernel_size=4, stride=2, padding=1), 
+            nn.ReLU(), 
+            nn.Conv2d(24, 36, kernel_size=4, stride=2, padding=1), 
+            nn.ReLU(), 
+            nn.Conv2d(36, 48, kernel_size=4, stride=2, padding=1), 
+            nn.ReLU(), 
+            nn.Conv2d(48, 64, kernel_size=4, stride=2, padding=1), 
+            nn.ReLU(), 
             Flatten(),
         )
         
         self.classifier = nn.Sequential(
-            #
-            # YOUR CODE GOES HERE
-            #
+            nn.Linear(4096, 64), 
+            nn.ReLU(), 
+            nn.Linear(64, n_classes), 
+            #nn.ReLU()
         )  
         
         self.apply(weights_init)

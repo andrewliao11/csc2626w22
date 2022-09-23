@@ -11,7 +11,9 @@ import os
 from dataset_loader import DrivingDataset
 from driving_policy import DiscreteDrivingPolicy
 from utils import DEVICE, str2bool
+from collections import Counter
 import ipdb
+
 
 def train_discrete(model, iterator, opt, args):
     model.train()
@@ -25,13 +27,21 @@ def train_discrete(model, iterator, opt, args):
     # Compute the derivatives of the loss w.r.t. network parameters
     # Take a step in the approximate gradient direction using the optimizer opt  
     
+    all_commands = iterator.dataset.get_all_commands()
+    class_weights = np.ones(args.n_steering_classes)
+    for k, v in Counter(all_commands).items():
+        class_weights[k] = len(all_commands) / v
+        
     for i_batch, batch in enumerate(iterator):
 
         model.zero_grad()
         logits = model(batch['image'])
-        ipdb.set_trace()
 
-        loss = F.cross_entropy(logits, batch['cmd'])
+        if args.weighted_loss:
+            loss = F.cross_entropy(logits, batch['cmd'], weight=class_weights)
+        else:
+            loss = F.cross_entropy(logits, batch['cmd'])
+
         loss.backward()
         opt.step()
         
@@ -84,6 +94,7 @@ def test_discrete(model, iterator, opt, args):
     
     return avg_acc
     
+
 def get_class_distribution(iterator, args):
     class_dist = np.zeros((args.n_steering_classes,), dtype=np.float32)
     for i_batch, batch in enumerate(iterator):
@@ -132,9 +143,15 @@ def main(args):
         if avg_acc > best_val_accuracy:
             best_val_accuracy = avg_acc
             # save model here
-        
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': driving_policy.state_dict(),
+                'optimizer_state_dict': opt.state_dict(),
+                'best_val_accuracy': best_val_accuracy,
+                }, args.weights_out_file)
         
     return driving_policy
+
 
 if __name__ == "__main__":
     
@@ -154,5 +171,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-        
-    

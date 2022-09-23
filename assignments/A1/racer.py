@@ -61,7 +61,11 @@ if __name__ == "__main__":
     
     steering_network = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(DEVICE)
     if args.learner_weights:
-        steering_network.load_weights_from(args.learner_weights)
+        try:
+            steering_network.load_weights_from(args.learner_weights)
+        except RuntimeError:
+            _weights = torch.load(args.learner_weights)['model_state_dict']
+            steering_network.load_state_dict(_weights)
 
     run(steering_network, args)
 

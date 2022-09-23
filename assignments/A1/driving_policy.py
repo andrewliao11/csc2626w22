@@ -25,8 +25,6 @@ class DiscreteDrivingPolicy(nn.Module):
     def __init__(self, n_classes):
         super().__init__()
         self.n_classes = n_classes
-
-        
         self.features = nn.Sequential(
             nn.Conv2d(3, 24, kernel_size=4, stride=2, padding=1), 
             nn.ReLU(), 
@@ -47,7 +45,6 @@ class DiscreteDrivingPolicy(nn.Module):
         )  
         
         self.apply(weights_init)
-        
         
     def forward(self, x):
         f = self.features(x)
@@ -74,7 +71,3 @@ class DiscreteDrivingPolicy(nn.Module):
     def load_weights_from(self, weights_filename):
         weights = torch.load(weights_filename)
         self.load_state_dict( {k:v for k,v in weights.items()}, strict=True)
-
-    
-
-

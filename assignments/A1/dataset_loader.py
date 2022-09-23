@@ -40,3 +40,18 @@ class DrivingDataset(Dataset):
         
         return {'image': image, 'cmd': steering_command}
         
+    def get_all_commands(self):
+        all_commands = []
+        for idx in range(len(self)):
+            basename = self.filenames[idx]
+
+            m = re.search('expert_([0-9]+)_([0-9]+)_([-+]?\d*\.\d+|\d+).jpg', basename)
+            steering_command = np.array(float(m.group(3)), dtype=np.float32)
+
+            if self.categorical:
+                steering_command = int(((steering_command + 1.0)/2.0) * (self.classes - 1)) 
+
+            all_commands.append(steering_command)
+
+        return np.array(all_commands)
+        

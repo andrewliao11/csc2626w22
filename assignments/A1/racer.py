@@ -2,12 +2,14 @@ import gym
 from full_state_car_racing_env import FullStateCarRacingEnv
 import scipy
 import scipy.misc
+import time
 import imageio
 import numpy as np
 import argparse
 import torch
 import os
 
+import ipdb
 from driving_policy import DiscreteDrivingPolicy
 from utils import DEVICE, str2bool
 
@@ -19,6 +21,7 @@ def run(steering_network, args):
     
     learner_action = np.array([0.0, 0.0, 0.0])
     expert_action = None
+    tot_cross_track_err = []
     
     for t in range(args.timesteps):
         env.render()
@@ -27,6 +30,9 @@ def run(steering_network, args):
         if done:
             break
         
+        _, cross_track_err, _ = env.get_cross_track_error(env.car, env.track)
+        tot_cross_track_err.append(cross_track_err)
+
         expert_steer = expert_action[0]  # [-1, 1]
         expert_gas = expert_action[1]    # [0, 1]
         expert_brake = expert_action[2]  # [0, 1]
@@ -42,7 +48,11 @@ def run(steering_network, args):
         if args.save_expert_actions:
             imageio.imwrite(os.path.join(args.out_dir, 'expert_%d_%d_%f.jpg' % (args.run_id, t, expert_steer)), state)
 
+    print(f'Cross track erro {sum(tot_cross_track_err)}')
     env.close()
+
+    return tot_cross_track_err
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

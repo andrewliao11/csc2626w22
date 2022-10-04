@@ -26,21 +26,13 @@ def train_discrete(model, iterator, opt, args):
     # Compute the cross_entropy loss with and without weights  
     # Compute the derivatives of the loss w.r.t. network parameters
     # Take a step in the approximate gradient direction using the optimizer opt  
-    
-    all_commands = iterator.dataset.get_all_commands()
-    class_weights = np.ones(args.n_steering_classes)
-    for k, v in Counter(all_commands).items():
-        class_weights[k] = len(all_commands) / v
         
     for i_batch, batch in enumerate(iterator):
 
         model.zero_grad()
         logits = model(batch['image'])
 
-        if args.weighted_loss:
-            loss = F.cross_entropy(logits, batch['cmd'], weight=class_weights)
-        else:
-            loss = F.cross_entropy(logits, batch['cmd'])
+        loss = F.cross_entropy(logits, batch['cmd'])
 
         loss.backward()
         opt.step()
@@ -121,7 +113,21 @@ def main(args):
                                         classes=args.n_steering_classes,
                                         transform=data_transform)
     
-    training_iterator = DataLoader(training_dataset, batch_size=args.batch_size, shuffle=True, num_workers=1)
+    print(f'Train dataset size = {len(training_dataset)}')
+
+    all_commands = training_dataset.get_all_commands()
+    class_weights = torch.ones(args.n_steering_classes)
+    for k, v in Counter(all_commands).items():
+        class_weights[k] = len(all_commands) / v
+
+    weights = [class_weights[cmd] for cmd in all_commands]
+    batch_sampler = torch.utils.data.WeightedRandomSampler(weights=weights, num_samples=args.batch_size)
+
+    if args.weighted_loss:
+        training_iterator = DataLoader(training_dataset, batch_sampler=batch_sampler, num_workers=1)
+    else:
+        training_iterator = DataLoader(training_dataset, batch_size=args.batch_size, num_workers=1)
+
     validation_iterator = DataLoader(validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=1)
     driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(DEVICE)
     

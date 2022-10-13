@@ -66,7 +66,6 @@ class FullStateCarRacingEnv(CarRacing):
         #print (error_heading * 180.0 / 3.14, error_dist, p_car_trackframe[1][0])
         return error_heading, error_dist, dest_min 
 
-    
     def get_expert_action(self, car, track):
         current_speed = sqrt(self.car.hull.linearVelocity.x**2 + self.car.hull.linearVelocity.y**2)
         eh, ed, _ = self.get_cross_track_error(car, track)

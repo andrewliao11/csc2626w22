@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import time
 from dmp import DMP
 from policy import BallCatchDMPPolicy
+import ipdb
+
 
 PATH_TO_HOME = str(pathlib.Path(__file__).parent.resolve())
 PATH_TO_NLOPTJSON = str((
@@ -57,6 +59,7 @@ def make_env(online=True, dataset=None, n_substeps = 1, gravity_factor_std=0., n
     env.reset()
     return env
 
+
 def test_policy(eval_env, policy, eval_episodes=5, render_freq=1, seed=1):
     # Set seeds
     eval_env.seed(seed)
@@ -96,33 +99,76 @@ def test_policy(eval_env, policy, eval_episodes=5, render_freq=1, seed=1):
     print("")
     return avg_reward, success_pct
 
+
 def load_dataset(dataset_path="data/demos.pkl"):
     with open(dataset_path, 'rb') as f:
         dataset = pickle.load(f)
     return [traj[:, :6] for traj in dataset["trajectories"]] # 1st 6 elements are joint angle
 
+
 def q2_recons():
     trajectories = load_dataset()
     # TODO: Train a DMP on trajectories[0]
-    dmp = 
-    rollout = 
+    dmp = DMP()
 
-    # for k in range(6):
-    #     plt.figure()
-    #     plt.plot(demo_time, demo[:, k], label='GT')
-    #     plt.plot(rollout_time, rollout[:, k], label='DMP')
-    #     plt.legend()
-    #     plt.savefig(f'results/recons_{k}.png')
+    dt = 0.04
+    demo, demo_time = dmp._interpolate([trajectories[0]], dt)
+    dmp.learn(demo, demo_time)
+
+    # rollout
+    x0 = demo[:, 0, :][:, None, :]              # x0: num_demos, 1, num_dofs
+    tau = demo_time[:, -1].reshape(-1, 1)       # tau: num_demos, 1
+    g = demo[:, -1, :][:, None, :]              # g: num_demos, 1, num_dofs
+
+    rollout = dmp.rollout(dt, tau, x0, g)
+    rollout_time = demo_time
+    
+    for k in range(6):
+        plt.figure()
+        plt.plot(demo_time[0], demo[0][:, k], label='GT')
+        plt.plot(rollout_time[0], rollout[0][:-1, k], label='DMP')
+        plt.legend()
+        plt.savefig(f'results/recons_{k}.png')
 
 
 def q2_tuning():
     trajectories = load_dataset()
-    
+
     # TODO: select the best settings for fitting the demos
-    dmp = 
-    X, T = 
+    best_config = dict(
+        err=np.inf, 
+        dmp=None, 
+        nbasis=None, 
+        k=None
+    )
+    for nbasis in [2, 10, 20, 30]:
+        for k in [1, 10, 50, 100, 200, 250]:
+            print("="*50)
+            print(f"Try: nbasis={nbasis}, k={k}")
+            dmp = DMP(nbasis=nbasis, K_vec=k*np.ones((6,)))
+            demo, demo_time = dmp._interpolate(trajectories, 0.04)
+            dmp.learn(demo, demo_time)
+
+            rollout = []
+            for demo_i, demo_time_i in zip(demo, demo_time):
+                x0 = demo_i[0, :][None, None, :]              # x0: num_demos, 1, num_dofs
+                tau = demo_time_i[-1].reshape(-1, 1)       # tau: num_demos, 1
+                g = demo_i[-1, :][None, None, :]              # g: num_demos, 1, num_dofs
+
+                dt = demo_time_i[1] - demo_time_i[0]
+                rollout_i = dmp.rollout(dt, tau, x0, g)[0][:len(demo_i), :]
+                rollout.append(rollout_i)
+
+            rollout = np.stack(rollout, 0)
+            err = ((rollout - demo) ** 2).mean() ** 0.5
+            if err < best_config["err"]:
+                best_config["nbasis"] = nbasis
+                best_config["k"] = k
+                best_config["err"] = err
+                best_config["dmp"] = dmp
+                print(f"Find a better config (nbasis={best_config['nbasis']}, k={best_config['k']}) with err: {err}")
     
-    dmp.learn(X, T)
+    print(f"Best config: {best_config}")        
     dmp.save(TRAINED_DMP_PATH)
 
 
@@ -134,7 +180,6 @@ def main():
     test_policy(env, policy, eval_episodes=20, render_freq=1)
 
 
-q2_recons()
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         main()

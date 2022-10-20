@@ -1,3 +1,6 @@
+import ipdb
+
+
 class BallCatchDMPPolicy:
     def __init__(self, dmp, dt):
         """
@@ -35,7 +38,8 @@ class BallCatchDMPPolicy:
         x_dot = state[6:12]
         
         # TODO: Query the DMP
-        x_target, x_dot_target = 
+        ipdb.set_trace()
+        #x_target, x_dot_target = 
 
         self.history.append(state)
         self.plan.append(x_target)

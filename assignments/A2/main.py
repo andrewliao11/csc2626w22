@@ -2,10 +2,13 @@ import sys
 import pickle
 import gym
 import gym_thing
+import itertools
 import numpy as np
 import pathlib
 import matplotlib.pyplot as plt
 import time
+from functools import partial
+from joblib import Parallel, delayed
 from dmp import DMP
 from policy import BallCatchDMPPolicy
 import ipdb
@@ -131,6 +134,34 @@ def q2_recons():
         plt.savefig(f'results/recons_{k}.png')
 
 
+def _f(k, nbasis, trajectories, return_dmp=False):
+    
+    k = np.array(k).reshape(-1)
+
+    print("="*50)
+    print(f"Try: nbasis={nbasis}, k={k}")
+    dmp = DMP(nbasis=nbasis, K_vec=k)
+    demo, demo_time = dmp._interpolate(trajectories, 0.04)
+    dmp.learn(demo, demo_time)
+
+    rollout = []
+    for demo_i, demo_time_i in zip(demo, demo_time):
+        x0 = demo_i[0, :][None, None, :]              # x0: num_demos, 1, num_dofs
+        tau = demo_time_i[-1].reshape(-1, 1)       # tau: num_demos, 1
+        g = demo_i[-1, :][None, None, :]              # g: num_demos, 1, num_dofs
+
+        dt = demo_time_i[1] - demo_time_i[0]
+        rollout_i = dmp.rollout(dt, tau, x0, g)[0][:len(demo_i), :]
+        rollout.append(rollout_i)
+
+    rollout = np.stack(rollout, 0)
+    err = ((rollout - demo) ** 2).mean() ** 0.5
+    if return_dmp:
+        return dmp
+    else:
+        return err
+
+
 def q2_tuning():
     trajectories = load_dataset()
 
@@ -141,11 +172,36 @@ def q2_tuning():
         nbasis=None, 
         k=None
     )
+    k1 = [1, 10, 50, 100, 200, 250]
+    k2 = [1, 10, 50, 100, 200, 250]
+    k3 = [1, 10, 50, 100, 200, 250]
+    k4 = [1, 10, 50, 100, 200, 250]
+    k5 = [1, 10, 50, 100, 200, 250]
+    k6 = [1, 10, 50, 100, 200, 250]
+
+    
     for nbasis in [2, 10, 20, 30]:
-        for k in [1, 10, 50, 100, 200, 250]:
+        errs = Parallel(n_jobs=16)(delayed(partial(_f, nbasis=nbasis, trajectories=trajectories))(k) for k in itertools.product(*[k1, k2, k3, k4, k5, k6]))
+        
+        idx = np.argmin(errs)
+        err = errs[idx]
+        k = list(itertools.product(*[k1, k2, k3, k4, k5, k6]))[idx]
+    
+        dmp = _f(k, nbasis, trajectories, return_dmp=True)
+        if err < best_config["err"]:
+            best_config["nbasis"] = nbasis
+            best_config["k"] = k
+            best_config["err"] = err
+            best_config["dmp"] = dmp
+            print(f"Find a better config (nbasis={best_config['nbasis']}, k={best_config['k']}) with err: {err}")
+
+        '''
+        for k in itertools.product(*[k1, k2, k3, k4, k5, k6]):
+            k = np.array(k).reshape(-1)
+
             print("="*50)
             print(f"Try: nbasis={nbasis}, k={k}")
-            dmp = DMP(nbasis=nbasis, K_vec=k*np.ones((6,)))
+            dmp = DMP(nbasis=nbasis, K_vec=k)
             demo, demo_time = dmp._interpolate(trajectories, 0.04)
             dmp.learn(demo, demo_time)
 
@@ -167,8 +223,10 @@ def q2_tuning():
                 best_config["err"] = err
                 best_config["dmp"] = dmp
                 print(f"Find a better config (nbasis={best_config['nbasis']}, k={best_config['k']}) with err: {err}")
-    
-    print(f"Best config: {best_config}")        
+        '''
+
+    print(f"Best config: {best_config}")   
+    dmp = best_config['dmp']
     dmp.save(TRAINED_DMP_PATH)
 
 

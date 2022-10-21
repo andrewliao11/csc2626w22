@@ -76,9 +76,9 @@ class DMP(object):
         s = np.exp((-self.alpha / tau) * T[..., None]).reshape(len(X), -1, 1)
 
         # TODO: Compute x_dot and x_ddot using numerical differentiation (np.graident)
-        dt = T[0, 1] - T[0, 0]
-        x_dot = np.gradient(X, dt, axis=1)
-        x_ddot = np.gradient(x_dot, dt, axis=1)
+        dt = T[:, 1] - T[:, 0]        
+        x_dot = np.stack([np.gradient(_X, _dt, axis=0) for _X, _dt in zip(X, dt)], 0)
+        x_ddot = np.stack([np.gradient(_x_dot, _dt, axis=0) for _x_dot, _dt in zip(x_dot, dt)], 0)
 
         # TODO: Temporal Scaling by tau.
         v_dot = tau * x_ddot
@@ -96,6 +96,7 @@ class DMP(object):
         # Hint: you can use np.linalg.lstsq
         A = psi.reshape(-1, self.nbasis) * s.reshape(-1, 1) / psi.reshape(-1, self.nbasis).sum(1, keepdims=True)
         B = f_s_target.reshape(-1, num_dofs)
+        
         self.weights = np.linalg.lstsq(A, B)[0]
 
     def execute(self, t, dt, tau, x0, g, x_t, xdot_t):
@@ -114,8 +115,7 @@ class DMP(object):
         
         # TODO: Compute f(s). See equation 3.
         psi = np.exp(-self.basis_variances.reshape(1, 1, -1) * (s[:, :, np.newaxis] - self.basis_centers.reshape(1, 1, -1))**2)
-
-        f_s = (psi @ self.weights) / psi.sum(-1, keepdims=True)
+        f_s = (psi @ self.weights * s) / psi.sum(-1, keepdims=True)
 
         # Temporal Scaling
         v_t = tau[:, :, np.newaxis] * xdot_t
@@ -124,8 +124,9 @@ class DMP(object):
         v_dot_t = ((g - x_t) @ self.K - v_t @ self.D - (g - x0) @ self.K * s[:, :, np.newaxis] + f_s @ self.K) / tau[:, :, np.newaxis]
 
         # TODO: Calculate next position and velocity
-        x_tp1 = x_t + dt * v_t
         xdot_tp1 = xdot_t + dt * v_dot_t
+        x_tp1 = x_t + dt * xdot_tp1#v_t
+        
 
         return x_tp1, xdot_tp1
         
